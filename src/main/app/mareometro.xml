@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:json="http://www.mulesoft.org/schema/mule/json" xmlns:smtp="http://www.mulesoft.org/schema/mule/smtp" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/smtp http://www.mulesoft.org/schema/mule/smtp/current/mule-smtp.xsd
+http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/json/current/mule-json.xsd">
+    <http:request-config name="HTTP_Request_Configuration" host="api.thingspeak.com" port="80" basePath="channels/50289/feed.json" doc:name="HTTP Request Configuration"/>
+    <spring:beans>
+        <spring:bean id="transformador" name="Bean" class="eventos.Transformador"/>
+    </spring:beans>
+    <smtp:connector name="SMTP" contentType="text/plain" fromAddress="${mail.from}" replyToAddresses="${mail.from}" subject="Mareas" validateConnections="true" doc:name="SMTP"/>
+    <flow name="mareometroFlow">
+        <poll doc:name="Poll">
+            <fixed-frequency-scheduler frequency="20" timeUnit="SECONDS"/>
+            <http:request config-ref="HTTP_Request_Configuration" path="/" method="GET" doc:name="HTTP"/>
+        </poll>
+        <byte-array-to-string-transformer doc:name="Byte Array to String"/>
+        <json:json-to-object-transformer doc:name="JSON to Object"/>
+        <auto-transformer returnClass="eventos.eventoMarea" name="JSONToEventoMarea"></auto-transformer>
+		
+        <smtp:outbound-endpoint host="${mail.host}" user="${mail.username}" password="${mail.password}" to="${mail.to}" from="${mail.from}" subject="Aviso de mareas" responseTimeout="10000" doc:name="SMTP" />
+    </flow>
+</mule>
