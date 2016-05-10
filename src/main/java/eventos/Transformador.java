@@ -17,7 +17,7 @@ public class Transformador
 	{	  	  
 		eventoMarea evento = null;
 		String nombreDispositivo = obj.getAsString("channel/name");
-		
+		//System.out.println("Guarda el valor: " + Float.parseFloat(obj.getAsString("feeds[99]/field1")));
 		if(nombreDispositivo.equalsIgnoreCase("Ockway Bay Tide Level")) {
 			evento = new eventoMarea(
 					nombreDispositivo, 
@@ -25,7 +25,7 @@ public class Transformador
 					"LOC",
 					Float.parseFloat(obj.getAsString("channel/latitude")),
 					Float.parseFloat(obj.getAsString("channel/longitude")),
-					Float.parseFloat(obj.getAsString("feeds[1]/field1")),
+					Float.parseFloat(obj.getAsString("feeds[99]/field1")) ,
 					sube(obj),
 					obj.getAsString("channel/created_at"));
 			System.out.println("Evento transformado: " + evento);
@@ -36,10 +36,26 @@ public class Transformador
 	}
 	
 	boolean sube(JsonData obj){
+		System.out.println(Float.parseFloat(obj.getAsString("feeds[99]/field1")) + " vs " + Float.parseFloat(obj.getAsString("feeds[98]/field1")));
 		// Comparamos el valor actual con el de las últimas 2 mediciones
-		boolean sol = false;
-		if(Float.parseFloat(obj.getAsString("feeds[1]/field1")) > Float.parseFloat(obj.getAsString("feeds[1]/field1")))
-			sol = true;
-		return  sol;
+		return Float.parseFloat(obj.getAsString("feeds[99]/field1")) > Float.parseFloat(obj.getAsString("feeds[98]/field1"));
+	}
+	
+	@Transformer  
+	public eventoTemperatura JSONToEventoTemperatura(JsonData obj) throws Exception 
+	{
+		eventoTemperatura evento = null;
+		String nombreDispositivo = obj.getAsString("channel/name");
+		if(nombreDispositivo.equalsIgnoreCase("IEEE Weather Station")) {
+			evento = new eventoTemperatura(
+					nombreDispositivo,
+					Float.parseFloat(obj.getAsString("feeds[1]/field1")),
+					obj.getAsString("channel/updated_at")
+					);
+		
+		}
+		System.out.println(evento.toString());
+		return evento;
+	
 	}
 }

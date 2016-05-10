@@ -11,6 +11,7 @@ public class eventoMarea {
 	private boolean subiendo;
 	private String fecha;
 	
+	
 	public eventoMarea(
 			String dispositivo, 
 			String sensor, 
@@ -36,7 +37,9 @@ public class eventoMarea {
 		return (float) (pulgadas * 2.54);
 	}
 		
-	
+	public boolean getSubiendo(){
+		return subiendo;
+	}
 
 	@Override
 	public String toString() {
@@ -87,5 +90,10 @@ public class eventoMarea {
 
 	public void setFecha(String fecha) {
 		this.fecha = fecha;
+	}
+	
+	
+	public float getAltura(){
+		return alturaMarea;
 	}
 }

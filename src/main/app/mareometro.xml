@@ -1,18 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<mule xmlns:json="http://www.mulesoft.org/schema/mule/json" xmlns:smtp="http://www.mulesoft.org/schema/mule/smtp" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+<mule xmlns:file="http://www.mulesoft.org/schema/mule/file" xmlns:twitter="http://www.mulesoft.org/schema/mule/twitter" xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns:json="http://www.mulesoft.org/schema/mule/json" xmlns:smtp="http://www.mulesoft.org/schema/mule/smtp" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
 	xmlns:spring="http://www.springframework.org/schema/beans" 
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
-http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/json/current/mule-json.xsd
 http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/twitter http://www.mulesoft.org/schema/mule/twitter/current/mule-twitter.xsd
 http://www.mulesoft.org/schema/mule/smtp http://www.mulesoft.org/schema/mule/smtp/current/mule-smtp.xsd
-http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/json/current/mule-json.xsd">
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
     <http:request-config name="HTTP_Request_Configuration" host="api.thingspeak.com" port="80" basePath="channels/50289/feed.json" doc:name="HTTP Request Configuration"/>
     <spring:beans>
         <spring:bean id="transformador" name="Bean" class="eventos.Transformador"/>
     </spring:beans>
     <smtp:connector name="SMTP" contentType="text/plain" fromAddress="${mail.from}" replyToAddresses="${mail.from}" subject="Mareas" validateConnections="true" doc:name="SMTP"/>
+    <twitter:config name="Twitter__Configuration" accessKey="${twitter.accessKey}" accessSecret="${twitter.accesSecret}" consumerKey="${twitter.consumerKey}" consumerSecret="${twitter.consumerSecret}" doc:name="Twitter: Configuration"/>
+    <http:request-config name="HTTP_Request_Configuration1" host="api.thingspeak.com" port="80" basePath="channels/88666/feed.json" doc:name="HTTP Request Configuration"/>
     <flow name="mareometroFlow">
         <poll doc:name="Poll">
             <fixed-frequency-scheduler frequency="20" timeUnit="SECONDS"/>
@@ -21,7 +26,40 @@ http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/jso
         <byte-array-to-string-transformer doc:name="Byte Array to String"/>
         <json:json-to-object-transformer doc:name="JSON to Object"/>
         <auto-transformer returnClass="eventos.eventoMarea" name="JSONToEventoMarea"></auto-transformer>
-		
-        <smtp:outbound-endpoint host="${mail.host}" user="${mail.username}" password="${mail.password}" to="${mail.to}" from="${mail.from}" subject="Aviso de mareas" responseTimeout="10000" doc:name="SMTP" />
+        <choice doc:name="&#191;Sube o baja?">
+            <when expression="#[!payload.getSubiendo()]">
+                <scatter-gather doc:name="Baja">
+                    <processor-chain>
+                        <set-payload value="#[payload.toString()]" doc:name="Set Payload"/>
+                        <file:outbound-endpoint path="/home/erwol/Desktop" responseTimeout="10000" doc:name="File"/>
+                    </processor-chain>
+                    <twitter:update-status config-ref="Twitter__Configuration" status="&#161;V&#225;monos a mariscar a la bah&#237;a Ockway (#[payload.getAltura()] cms de profundidad)!" doc:name="Twitter"/>
+                    <smtp:outbound-endpoint host="${mail.host}" user="${mail.username}" password="${mail.password}" to="${mail.to}" from="${mail.from}" subject="&#161;Ei! V&#225;monos a coger coquinas" responseTimeout="10000" doc:name="Marea bajando"/>
+                </scatter-gather>
+                <echo-component doc:name="Echo"/>
+            </when>
+            <when expression="#[payload.getSubiendo()]">
+                <set-variable variableName="Altura" value="#[payload.getAltura()]" doc:name="Profundidad bah&#237;a de Oackway"/>
+                <http:request config-ref="HTTP_Request_Configuration1" path="/" method="GET" doc:name="HTTP"/>
+            
+                <byte-array-to-string-transformer doc:name="Byte Array to String"/>
+                <json:json-to-object-transformer doc:name="JSON to Object"/>
+                <auto-transformer returnClass="eventos.eventoTemperatura" name="JSONToEventoTemperatura"></auto-transformer>
+                <choice doc:name="Seg&#250;n altura del agua y temperatura de IEEE">
+                    <when expression="#[payload.getTemperatura() &lt; 15]">
+                        <twitter:update-status config-ref="Twitter__Configuration" status="Entre que est&#225; subiendo y que estamos a #[payload.getTemperatura()]&#186; mejor me quedo en casa." doc:name="Temperatura &lt; 15"/>
+                    </when>
+                    <when expression="#[flowVars['Altura'] &gt; 20 &amp;&amp; payload.getTemperatura() &gt; 15]">
+                        <twitter:update-status config-ref="Twitter__Configuration" status="A #[payload.getTemperatura()] grados y con una profundidad de #[flowVars['Altura']] mejor nos ponemos a pescar." doc:name="Temperatura &gt; 15 y altura del agua &gt; 10 cms"/>
+                    </when>
+                    <otherwise>
+                        <echo-component doc:name="Echo"/>
+                    </otherwise>
+                </choice>
+            </when>
+            <otherwise>
+                <echo-component doc:name="Echo"/>
+            </otherwise>
+        </choice>
     </flow>
 </mule>
